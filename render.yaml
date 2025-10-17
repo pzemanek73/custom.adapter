@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: custom-adapter
+    runtime: docker
+    plan: free
+    region: frankfurt
+#    healthCheckPath: /actuator/health
