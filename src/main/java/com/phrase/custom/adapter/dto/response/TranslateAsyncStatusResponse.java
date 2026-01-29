@@ -3,12 +3,13 @@ package com.phrase.custom.adapter.dto.response;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import static java.util.Objects.isNull;
 import static org.apache.commons.lang3.EnumUtils.getEnum;
 import static org.apache.commons.lang3.StringUtils.toRootUpperCase;
 
-public record TranslateAsyncStatusResponse(@NotNull AsyncStatus status) {
+public record TranslateAsyncStatusResponse(@NotNull AsyncStatus status, @Nullable String detail) {
 
     public enum AsyncStatus {
         RUNNING("running"),
