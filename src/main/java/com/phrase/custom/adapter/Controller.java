@@ -85,6 +85,7 @@ public class Controller {
         processHeaders(request);
 
         // Call your engine here
+        // Please make sure to be able to handle up to 500 segments
 
         TranslateResponse translateResponse = getTranslateResponse(translateRequest);
         return new ResponseEntity<>(translateResponse, OK);
@@ -99,10 +100,15 @@ public class Controller {
         translateRequestCache.put(jobId, Pair.of(now(), translateRequest));
 
         // Call your engine here - start the asynchronous translation
+
+        // Please make sure to be able to handle up to 500 segments
+
         // Note that this endpoint should return fast and be non-blocking (do not call the engine directly here,
         // for example, use a separate thread or a processing queue to start the async. translation)
+        // If your engine doesn't support async processing, you can still do it similarly to the sync call, but accumulate the results and return them asynchronously
         // Be careful in regard to concurrency, make sure the jobs are not overwriting each other's data, are thread-safe
         // and separated by the jobId
+
         logger.info("Starting jobId: '{}'", jobId);
 
         TranslateAsyncResponse translateAsyncResponse = new TranslateAsyncResponse(jobId);
