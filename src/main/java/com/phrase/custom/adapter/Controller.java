@@ -14,11 +14,13 @@ import com.phrase.custom.adapter.dto.response.TranslateAsyncResponse;
 import com.phrase.custom.adapter.dto.response.TranslateAsyncStatusResponse;
 import com.phrase.custom.adapter.dto.response.TranslateAsyncStatusResponse.AsyncStatus;
 import com.phrase.custom.adapter.dto.response.TranslateResponse;
+import com.phrase.custom.adapter.translate.TranslationService;
+import com.phrase.custom.adapter.translate.TranslationService.AsyncJobResult;
 import jakarta.servlet.http.HttpServletRequest;
-import org.apache.commons.lang3.tuple.Pair;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -27,27 +29,34 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
-import static java.time.Instant.now;
 import static java.util.Collections.list;
 import static java.util.Objects.isNull;
+import static java.util.Objects.nonNull;
 import static java.util.stream.Collectors.joining;
-import static org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR;
-import static org.springframework.http.HttpStatus.OK;
+
+/**
+ * Please make sure to implement all the endpoints in a meaningful way, especially the async endpoints.
+ * Otherwise, the Phrase translation functions may not work as expected.
+ */
 
 @RestController
 public class Controller {
 
     private final Logger logger = LoggerFactory.getLogger(Controller.class);
 
-    private static final Cache<@NotNull String, Pair<Instant, TranslateRequest>> translateRequestCache =
-            Caffeine.<String, TranslateRequest>newBuilder()
-                    .expireAfterWrite(15, TimeUnit.MINUTES)
+    private static final Cache<@NotNull String, CompletableFuture<AsyncJobResult>> asyncJobCache =
+            Caffeine.newBuilder()
+                    .expireAfterWrite(35, TimeUnit.MINUTES)
                     .build();
+
+    @Autowired
+    private TranslationService translationService;
 
     @PostMapping("/languages")
     public ResponseEntity<LanguagesResponse> languages(@RequestBody LanguagesRequest languagesRequest, HttpServletRequest request) {
@@ -65,7 +74,7 @@ public class Controller {
                 new LanguagePair(new Locale("en"), new Locale("zh_tw"))
         ));
 
-        return new ResponseEntity<>(languagesResponse, OK);
+        return ResponseEntity.ok(languagesResponse);
     }
 
     @PostMapping("/status")
@@ -76,7 +85,7 @@ public class Controller {
         // If the engine isn't fully ready, return NOT_OK
 
         StatusResponse statusResponse = new StatusResponse(StatusResponse.Status.OK);
-        return new ResponseEntity<>(statusResponse, OK);
+        return ResponseEntity.ok(statusResponse);
     }
 
     @PostMapping("/translate")
@@ -84,11 +93,11 @@ public class Controller {
         logger.info("Translate request: {}", translateRequest);
         processHeaders(request);
 
-        // Call your engine here
+        // Call your engine here via the translation service
         // Please make sure to be able to handle up to 500 segments
 
-        TranslateResponse translateResponse = getTranslateResponse(translateRequest);
-        return new ResponseEntity<>(translateResponse, OK);
+        TranslateResponse translateResponse = translationService.translate(translateRequest);
+        return ResponseEntity.ok(translateResponse);
     }
 
     @PostMapping("/translateAsync")
@@ -97,57 +106,66 @@ public class Controller {
         processHeaders(request);
 
         String jobId = UUID.randomUUID().toString();
-        translateRequestCache.put(jobId, Pair.of(now(), translateRequest));
+        logger.info("Starting jobId: '{}'", jobId);
 
-        // Call your engine here - start the asynchronous translation
-
+        // Call your engine via the translation service - start the asynchronous translation
         // Please make sure to be able to handle up to 500 segments
 
         // Note that this endpoint should return fast and be non-blocking (do not call the engine directly here,
-        // for example, use a separate thread or a processing queue to start the async. translation)
-        // If your engine doesn't support async processing, you can still do it similarly to the sync call, but accumulate the results and return them asynchronously
+        // for example, use a separate thread as demonstrated or a processing queue to start the async. translation)
+        // If your engine doesn't support async processing, you can still call the engine synchronously in the translationService.translateAsync method
         // Be careful in regard to concurrency, make sure the jobs are not overwriting each other's data, are thread-safe
         // and separated by the jobId
 
-        logger.info("Starting jobId: '{}'", jobId);
+        CompletableFuture<AsyncJobResult> future = translationService.translateAsync(translateRequest);
+        asyncJobCache.put(jobId, future);
 
         TranslateAsyncResponse translateAsyncResponse = new TranslateAsyncResponse(jobId);
-        return new ResponseEntity<>(translateAsyncResponse, OK);
+        return ResponseEntity.ok(translateAsyncResponse);
     }
 
     @GetMapping("/translateAsyncStatus/{jobId}")
-    public ResponseEntity<TranslateAsyncStatusResponse> translateAsyncStatus(@PathVariable String jobId, HttpServletRequest request) {
+    public ResponseEntity<TranslateAsyncStatusResponse> translateAsyncStatus(@PathVariable String jobId, HttpServletRequest request) throws ExecutionException, InterruptedException {
         logger.info("Translate async status request: {}", jobId);
         processHeaders(request);
 
-        // Report the progress of the translation
+        // Report the progress of the translation job
 
-        Pair<Instant, TranslateRequest> cacheRecord = translateRequestCache.getIfPresent(jobId);
-        checkCacheRecord(jobId, cacheRecord);
+        CompletableFuture<AsyncJobResult> cacheRecord = getJobCacheRecord(jobId);
 
-        // Simulating work for 5 sec
-        TranslateAsyncStatusResponse translateAsyncStatusResponse = new TranslateAsyncStatusResponse(
-                now().isBefore(cacheRecord.getLeft().plusSeconds(5)) ? AsyncStatus.RUNNING : AsyncStatus.DONE,
-                "detail" // In case of a FAILED status, pls include some detail explanation
-        );
+        AsyncStatus status = AsyncStatus.RUNNING;
+        String detail = "no detail";
+        if (cacheRecord.isDone()) {
+            if (nonNull(cacheRecord.get().translateResponse())) {
+                status = AsyncStatus.DONE;
+                detail = "completed successfully";
+            } else {
+                status = AsyncStatus.FAILED;
+                detail = cacheRecord.get().failureDetail(); // Make sure the failure detail is filled out as it gets propagated to the UI and is useful for debugging
+            }
+        }
+        TranslateAsyncStatusResponse translateAsyncStatusResponse = new TranslateAsyncStatusResponse(status, detail);
 
-        return new ResponseEntity<>(translateAsyncStatusResponse, OK);
+        return ResponseEntity.ok(translateAsyncStatusResponse);
     }
 
     @GetMapping("/translateAsyncResult/{jobId}")
-    public ResponseEntity<TranslateResponse> translateAsyncResult(@PathVariable String jobId, HttpServletRequest request) {
+    public ResponseEntity<TranslateResponse> translateAsyncResult(@PathVariable String jobId, HttpServletRequest request) throws ExecutionException, InterruptedException {
         logger.info("Translate async result request: {}", jobId);
         processHeaders(request);
 
-        Pair<Instant, TranslateRequest> cacheRecord = translateRequestCache.getIfPresent(jobId);
-        checkCacheRecord(jobId, cacheRecord);
+        CompletableFuture<AsyncJobResult> cacheRecord = getJobCacheRecord(jobId);
 
-        TranslateResponse translateResponse = getTranslateResponse(cacheRecord.getRight());
-        return new ResponseEntity<>(translateResponse, OK);
+        TranslateResponse translateResponse = cacheRecord.get().translateResponse();
+        return ResponseEntity.ok(translateResponse);
     }
 
     private void processHeaders(HttpServletRequest request) {
         // Can authenticate here, throw an exception when not authenticated
+        boolean authenticated = true;
+        if (!authenticated) {
+            throw new IllegalStateException("Not authenticated");
+        }
 
         String headers = list(request.getHeaderNames())
                 .stream()
@@ -160,36 +178,18 @@ public class Controller {
         logger.info("Http headers: {}", headers);
     }
 
-    private void checkCacheRecord(String jobId, Pair<Instant, TranslateRequest> cacheRecord) {
+    private CompletableFuture<AsyncJobResult> getJobCacheRecord(String jobId) {
+        CompletableFuture<AsyncJobResult> cacheRecord = asyncJobCache.getIfPresent(jobId);
         if (isNull(cacheRecord)) {
             throw new IllegalStateException("No translation job found with id '%s'".formatted(jobId));
         }
-    }
-
-    private @NotNull TranslateResponse getTranslateResponse(TranslateRequest translateRequest) {
-        // Translation simulation loopback (it only adds the target locale to the input segments)
-        List<TranslateResponse.TranslatedSegment> translatedSegments = translateRequest.segments().stream()
-                .map(s -> new TranslateResponse.TranslatedSegment(
-                                s.idx(),
-                                s.text(),
-                                "%s [%s]".formatted(s.text(), translateRequest.targetLanguage().locale()),
-                                s.metadata()
-                        )
-                )
-                .toList();
-
-        return new TranslateResponse(
-                translateRequest.sourceLanguage(),
-                translateRequest.targetLanguage(),
-                translatedSegments,
-                translateRequest.metadata()
-        );
+        return cacheRecord;
     }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleErrors(Exception exception) {
         ErrorResponse errorResponse = new ErrorResponse("Application Error: %s, %s".formatted(exception.getMessage(), exception.getCause()));
-        return new ResponseEntity<>(errorResponse, INTERNAL_SERVER_ERROR);
+        return ResponseEntity.internalServerError().body(errorResponse);
     }
 
 }
