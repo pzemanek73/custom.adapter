@@ -48,6 +48,14 @@ import static org.springframework.http.HttpStatus.TOO_MANY_REQUESTS;
 /**
  * Please make sure to implement all the endpoints in a meaningful way, especially the async endpoints.
  * Otherwise, the Phrase translation functions may not work as expected.
+ *
+ * See:
+ *
+ * <a href="https://support.phrase.com/hc/en-us/articles/5709660879516-Phrase-Language-AI-TMS#byo-engine-0-6">Phrase Help Center BYO article</a>
+ *
+ * <a href="https://developers.phrase.com/en/guides/byo-engine/introduction">Phrase BYO API Documentation</a>
+ *
+ * <a href="https://developers.phrase.com/public/assets/openapi/phrase-byo-mt.yaml">Phrase BYO OpenAPI schema file</a>
  */
 
 @RestController
