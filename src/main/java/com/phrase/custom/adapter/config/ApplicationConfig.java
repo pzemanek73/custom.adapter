@@ -1,4 +1,4 @@
-package com.phrase.custom.adapter;
+package com.phrase.custom.adapter.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -17,7 +17,7 @@ public class ApplicationConfig {
         executor.setCorePoolSize(50);
         executor.setMaxPoolSize(100);
         executor.setQueueCapacity(250);
-        executor.setThreadNamePrefix("CustomPool-");
+        executor.setThreadNamePrefix("AsyncTask-");
         executor.initialize();
 
         return executor;

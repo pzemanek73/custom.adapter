@@ -1,4 +1,4 @@
-package com.phrase.custom.adapter;
+package com.phrase.custom.adapter.controller;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
@@ -14,8 +14,8 @@ import com.phrase.custom.adapter.dto.response.TranslateAsyncResponse;
 import com.phrase.custom.adapter.dto.response.TranslateAsyncStatusResponse;
 import com.phrase.custom.adapter.dto.response.TranslateAsyncStatusResponse.AsyncStatus;
 import com.phrase.custom.adapter.dto.response.TranslateResponse;
-import com.phrase.custom.adapter.translate.TranslationService;
-import com.phrase.custom.adapter.translate.TranslationService.AsyncJobResult;
+import com.phrase.custom.adapter.service.TranslationService;
+import com.phrase.custom.adapter.service.TranslationService.AsyncJobResult;
 import jakarta.servlet.http.HttpServletRequest;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
@@ -33,12 +33,17 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 
+import static com.phrase.custom.adapter.dto.response.TranslateAsyncStatusResponse.AsyncStatus.DONE;
+import static com.phrase.custom.adapter.dto.response.TranslateAsyncStatusResponse.AsyncStatus.FAILED;
+import static com.phrase.custom.adapter.dto.response.TranslateAsyncStatusResponse.AsyncStatus.RUNNING;
 import static java.util.Collections.list;
 import static java.util.Objects.isNull;
 import static java.util.Objects.nonNull;
 import static java.util.stream.Collectors.joining;
+import static org.springframework.http.HttpStatus.TOO_MANY_REQUESTS;
 
 /**
  * Please make sure to implement all the endpoints in a meaningful way, especially the async endpoints.
@@ -133,14 +138,14 @@ public class Controller {
 
         CompletableFuture<AsyncJobResult> cacheRecord = getJobCacheRecord(jobId);
 
-        AsyncStatus status = AsyncStatus.RUNNING;
+        AsyncStatus status = RUNNING;
         String detail = "no detail";
         if (cacheRecord.isDone()) {
             if (nonNull(cacheRecord.get().translateResponse())) {
-                status = AsyncStatus.DONE;
+                status = DONE;
                 detail = "completed successfully";
             } else {
-                status = AsyncStatus.FAILED;
+                status = FAILED;
                 detail = cacheRecord.get().failureDetail(); // Make sure the failure detail is filled out as it gets propagated to the UI and is useful for debugging
             }
         }
@@ -186,9 +191,16 @@ public class Controller {
         return cacheRecord;
     }
 
+    @ExceptionHandler(RejectedExecutionException.class)
+    public ResponseEntity<ErrorResponse> handleRejectedAsyncExecutionErrors(Exception exception) {
+        // Backoff & retry
+        ErrorResponse errorResponse = new ErrorResponse("Application busy: %s, %s".formatted(exception.getMessage(), exception.getCause()));
+        return new ResponseEntity<>(errorResponse, TOO_MANY_REQUESTS);
+    }
+
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<ErrorResponse> handleErrors(Exception exception) {
-        ErrorResponse errorResponse = new ErrorResponse("Application Error: %s, %s".formatted(exception.getMessage(), exception.getCause()));
+    public ResponseEntity<ErrorResponse> handleOtherErrors(Exception exception) {
+        ErrorResponse errorResponse = new ErrorResponse("Application error: %s, %s".formatted(exception.getMessage(), exception.getCause()));
         return ResponseEntity.internalServerError().body(errorResponse);
     }
 

@@ -1,4 +1,4 @@
-package com.phrase.custom.adapter.translate;
+package com.phrase.custom.adapter.service;
 
 import com.phrase.custom.adapter.dto.request.TranslateRequest;
 import com.phrase.custom.adapter.dto.response.TranslateResponse;
