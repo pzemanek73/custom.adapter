@@ -141,12 +141,15 @@ public class Controller {
         AsyncStatus status = RUNNING;
         String detail = "no detail";
         if (cacheRecord.isDone()) {
-            if (nonNull(cacheRecord.get().translateResponse())) {
+            AsyncJobResult asyncJobResult = cacheRecord.get();
+            if (nonNull(asyncJobResult) && nonNull(asyncJobResult.translateResponse())) {
                 status = DONE;
                 detail = "completed successfully";
             } else {
                 status = FAILED;
-                detail = cacheRecord.get().failureDetail(); // Make sure the failure detail is filled out as it gets propagated to the UI and is useful for debugging
+                if (nonNull(asyncJobResult)) {
+                    detail = asyncJobResult.failureDetail(); // Make sure the failure detail is filled out as it gets propagated to the UI and is useful for debugging
+                }
             }
         }
         TranslateAsyncStatusResponse translateAsyncStatusResponse = new TranslateAsyncStatusResponse(status, detail);
@@ -158,6 +161,8 @@ public class Controller {
     public ResponseEntity<TranslateResponse> translateAsyncResult(@PathVariable String jobId, HttpServletRequest request) throws ExecutionException, InterruptedException {
         logger.info("Translate async result request: {}", jobId);
         processHeaders(request);
+
+        // Consider verifying the owner of the job to prevent data theft if dealing with sensitive data
 
         CompletableFuture<AsyncJobResult> cacheRecord = getJobCacheRecord(jobId);
 
