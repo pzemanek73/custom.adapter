@@ -43,7 +43,7 @@ public class TranslationService {
 
                 // Simulating work
                 logger.info("Translating...");
-                sleep(6000);
+                sleep(1000);
                 translateResponse = getTranslateResponse(translateRequest);
             } catch (Exception e) {
                 failureDetail = "translation failed: %s".formatted(e);
