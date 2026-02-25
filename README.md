@@ -6,6 +6,11 @@ The purpose of this demo adapter is to serve as a reference and a starting point
 
 NOTE: Please make sure to adhere to the [OpenAPI schema](https://developers.phrase.com/public/assets/openapi/phrase-byo-mt.yaml) when implementing your own adapter.
 
+**Technical Recommendations for Stability and Performance**
+- DNS Infrastructure & Routing: Please ensure your DNS resolution is stable and entries are correctly configured. Misconfigurations or propagation delays can lead to intermittent resolution failures, high latency, or request timeouts.
+- Application & Proxy Server Tuning (e.g., Nginx): Verify that your proxy/gateway servers are optimized for high-concurrency traffic. Specifically, check keep-alive settings and worker process limits to prevent TCP connection resets or intermittent "cut-offs" under load.
+- Load & Concurrency Testing: We strongly recommend performing synthetic load tests from external endpoints. Your adapter should be validated against a sustained concurrency of 100–200 requests per second (RPS) to ensure performance remains linear and stable.
+
 ## Features
 
 *   **Complete API Implementation**: Implements all required endpoints of the Phrase BYOE REST API specification.
