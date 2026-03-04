@@ -11,8 +11,8 @@ import com.phrase.custom.adapter.service.TranslationService.AsyncJobResult;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
@@ -49,7 +49,7 @@ class ControllerTest {
                         .content("{\"metadata\":{\"formality\":\"informal\"}}")
                         .header("X-Test", "value"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.languagePairs.length()").value(3))
+                .andExpect(jsonPath("$.languagePairs.length()").value(5))
                 .andExpect(jsonPath("$.languagePairs[0].sourceLanguage").value("en"))
                 .andExpect(jsonPath("$.languagePairs[0].targetLanguage").value("de"));
     }

@@ -85,6 +85,8 @@ public class Controller {
         LanguagesResponse languagesResponse = new LanguagesResponse(List.of(
                 new LanguagePair(new Locale("en"), new Locale("de")),
                 new LanguagePair(new Locale("en"), new Locale("cs")),
+                new LanguagePair(new Locale("en"), new Locale("fr")),
+                new LanguagePair(new Locale("en"), new Locale("es")),
                 new LanguagePair(new Locale("en"), new Locale("zh_tw"))
         ));
 
