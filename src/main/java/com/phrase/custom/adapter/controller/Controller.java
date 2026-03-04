@@ -39,6 +39,7 @@ import java.util.concurrent.TimeUnit;
 import static com.phrase.custom.adapter.dto.response.TranslateAsyncStatusResponse.AsyncStatus.DONE;
 import static com.phrase.custom.adapter.dto.response.TranslateAsyncStatusResponse.AsyncStatus.FAILED;
 import static com.phrase.custom.adapter.dto.response.TranslateAsyncStatusResponse.AsyncStatus.RUNNING;
+import static com.phrase.custom.adapter.util.SmartMasker.mask;
 import static java.util.Collections.list;
 import static java.util.Objects.isNull;
 import static java.util.Objects.nonNull;
@@ -48,7 +49,7 @@ import static org.springframework.http.HttpStatus.TOO_MANY_REQUESTS;
 /**
  * Please make sure to implement all the endpoints in a meaningful way, especially the async endpoints.
  * Otherwise, the Phrase translation functions may not work as expected.
- *
+ * <p>
  * See:
  *
  * <a href="https://support.phrase.com/hc/en-us/articles/5709660879516-Phrase-Language-AI-TMS#byo-engine-0-6">Phrase Help Center BYO article</a>
@@ -73,7 +74,7 @@ public class Controller {
 
     @PostMapping("/languages")
     public ResponseEntity<LanguagesResponse> languages(@RequestBody LanguagesRequest languagesRequest, HttpServletRequest request) {
-        logger.info("Languages request: {}", languagesRequest);
+        logger.info("Languages request: {}", mask(languagesRequest));
         processHeaders(request);
 
         // Note that if your supported set is large (maybe even ALL the codes in the Locale enum),
@@ -92,7 +93,7 @@ public class Controller {
 
     @PostMapping("/status")
     public ResponseEntity<StatusResponse> status(@RequestBody StatusRequest statusRequest, HttpServletRequest request) {
-        logger.info("Status request: {}", statusRequest);
+        logger.info("Status request: {}", mask(statusRequest));
         processHeaders(request);
 
         // If the engine isn't fully ready, return NOT_OK
@@ -103,7 +104,7 @@ public class Controller {
 
     @PostMapping("/translate")
     public ResponseEntity<TranslateResponse> translate(@RequestBody TranslateRequest translateRequest, HttpServletRequest request) {
-        logger.info("Translate request: {}", translateRequest);
+        logger.info("Translate request: {}", mask(translateRequest));
         processHeaders(request);
 
         // Call your engine here via the translation service
@@ -115,7 +116,7 @@ public class Controller {
 
     @PostMapping("/translateAsync")
     public ResponseEntity<TranslateAsyncResponse> translateAsync(@RequestBody TranslateRequest translateRequest, HttpServletRequest request) {
-        logger.info("Translate async request: {}", translateRequest);
+        logger.info("Translate async request: {}", mask(translateRequest));
         processHeaders(request);
 
         String jobId = UUID.randomUUID().toString();

@@ -12,7 +12,7 @@ public record Locale(@JsonValue @NotNull String locale) {
     public Locale(String locale) {
 
         // This is just a small scale example, please adhere to the Locale enum values from the OpenAPI spec
-        if (!List.of("en", "de", "cs", "zh_tw").contains(locale)) {
+        if (!List.of("en", "es", "de", "fr", "cs", "zh_tw").contains(locale)) {
             throw new IllegalArgumentException("%s is not a valid Phrase locale code/syntax".formatted(locale));
         }
         this.locale = locale;
