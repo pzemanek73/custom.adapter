@@ -1,6 +1,7 @@
 package com.phrase.custom.adapter.service;
 
 import com.deepl.api.DeepLClient;
+import com.deepl.api.TextResult;
 import com.phrase.custom.adapter.dto.request.TranslateRequest;
 import com.phrase.custom.adapter.dto.response.TranslateResponse;
 import org.jetbrains.annotations.NotNull;
@@ -9,6 +10,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
@@ -62,22 +64,17 @@ public class TranslationService {
         String authKey = isNull(translateRequest.metadata()) ? null : translateRequest.metadata().getOrDefault("deepl_api_key", "").toString();
         DeepLClient deepLClient = isBlank(authKey) ? null : new DeepLClient(authKey);
 
-        List<TranslateResponse.TranslatedSegment> translatedSegments = translateRequest.segments().stream()
+        List<TranslateResponse.TranslatedSegment> translatedSegments = isNull(deepLClient)
+                ? translateRequest.segments().stream()
                 .map(s ->
                         new TranslateResponse.TranslatedSegment(
                                 s.idx(),
                                 s.text(),
-                                isNull(deepLClient) ?
-                                        "%s [%s]".formatted(s.text(), translateRequest.targetLanguage().locale()) :
-                                        getDeepLTranslation(
-                                                deepLClient,
-                                                s.text(),
-                                                translateRequest.targetLanguage().locale()
-                                        ),
+                                "%s [%s]".formatted(s.text(), translateRequest.targetLanguage().locale()),
                                 s.metadata()
                         )
-                )
-                .toList();
+                ).toList()
+                : getDeepLTranslations(deepLClient, translateRequest.segments(), translateRequest.targetLanguage().locale());
 
         return new TranslateResponse(
                 translateRequest.sourceLanguage(),
@@ -87,9 +84,23 @@ public class TranslationService {
         );
     }
 
-    private String getDeepLTranslation(DeepLClient client, String text, String targetLocale) {
+    private List<TranslateResponse.TranslatedSegment> getDeepLTranslations(DeepLClient client, List<TranslateRequest.Segment> texts, String targetLocale) {
         try {
-            return client.translateText(text, null, targetLocale).getText();
+            List<String> translatedTexts = client.translateText(texts.stream().map(TranslateRequest.Segment::text).toList(), null, targetLocale).stream().map(TextResult::getText).toList();
+            List<TranslateResponse.TranslatedSegment> translatedSegments = new ArrayList<>();
+
+            for (int i = 0; i < translatedTexts.size(); i++) {
+                String translatedText = translatedTexts.get(i);
+                TranslateRequest.Segment segment = texts.get(i);
+                translatedSegments.add(new TranslateResponse.TranslatedSegment(
+                        segment.idx(),
+                        segment.text(),
+                        translatedText,
+                        segment.metadata()
+                ));
+            }
+
+            return translatedSegments;
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
